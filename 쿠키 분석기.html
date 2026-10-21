@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>쿠키 프라이버시 분석기</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#172033;background:#f5f7fb}
+*{box-sizing:border-box}body{margin:0}header{background:#172033;color:white;padding:28px 18px}
+.wrap{max-width:1050px;margin:auto;padding:0 16px}h1{font-size:clamp(1.5rem,4vw,2.2rem);margin:0 0 8px}header p{margin:0;color:#dbe4f5;line-height:1.6}
+main{padding:22px 0 48px}.notice{background:#e8f7ef;border:1px solid #b7e4ca;color:#14532d;padding:13px 15px;border-radius:12px;margin-bottom:16px;line-height:1.55}
+.panel{background:white;border:1px solid #e1e6ef;border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 4px 16px #17203308}
+h2{font-size:1.15rem;margin:0 0 12px}p{line-height:1.6}.muted{color:#657087;font-size:.92rem}
+textarea{width:100%;min-height:170px;border:1px solid #cbd3e1;border-radius:10px;padding:12px;font: .9rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical}
+input[type=file]{max-width:100%;padding:8px 0}button,.filelabel{display:inline-block;border:0;border-radius:10px;padding:11px 15px;font-weight:650;cursor:pointer;font-size:.95rem}
+.primary{background:#2359d6;color:white}.secondary{background:#edf1f8;color:#24324b}.danger{background:#fff0f0;color:#a12222}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}.error{color:#a12222;margin-top:10px;white-space:pre-wrap}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.stat{background:white;border:1px solid #e1e6ef;border-radius:13px;padding:14px}.stat strong{display:block;font-size:1.7rem;margin-top:4px}.stat span{color:#657087;font-size:.86rem}
+.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{text-align:left;padding:11px 10px;border-bottom:1px solid #e8ecf3;vertical-align:top}th{background:#f7f9fc;color:#3c4860;white-space:nowrap}td{overflow-wrap:anywhere}
+.pill{display:inline-block;padding:3px 8px;border-radius:999px;font-size:.78rem;font-weight:650;white-space:nowrap}.ok{background:#e4f7eb;color:#17643a}.warn{background:#fff2d5;color:#845400}.bad{background:#ffe5e5;color:#a12222}.neutral{background:#edf1f7;color:#45536c}
+.findings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.finding{border:1px solid #e4e8f0;border-radius:12px;padding:12px}.finding strong{display:block;margin-bottom:5px}.finding p{margin:0;font-size:.9rem;color:#58657a;line-height:1.5}
+.hidden{display:none!important}.foot{font-size:.85rem;color:#657087;line-height:1.6}
+@media(max-width:680px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.findings{grid-template-columns:1fr}.panel{padding:14px}th,td{padding:9px 8px}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>쿠키 프라이버시 분석기</h1><p>내보낸 쿠키 파일을 브라우저 안에서 분석하고, 보안 설정을 한눈에 확인하세요.</p></div></header>
+<main class="wrap">
+  <div class="notice"><strong>개인정보 보호 안내</strong><br>분석은 이 페이지 안에서만 처리됩니다. 쿠키 값은 화면에 표시하지 않고 서버로 전송하지 않습니다. 민감한 쿠키 파일은 신뢰할 수 없는 웹사이트에 업로드하지 마세요.</div>
+  <section class="panel">
+    <h2>1. 쿠키 데이터 불러오기</h2>
+    <p class="muted">JSON 쿠키 내보내기 파일(예: 브라우저 확장 프로그램의 JSON 내보내기) 또는 Netscape 형식의 쿠키 TXT 파일을 선택하세요. 파일 대신 아래 칸에 JSON을 붙여 넣어도 됩니다.</p>
+    <label for="file"><strong>파일 선택</strong></label><br><input id="file" type="file" accept=".json,.txt,.cookies,.csv,application/json,text/plain,text/csv">
+    <textarea id="input" spellcheck="false" aria-label="쿠키 JSON 데이터" placeholder='JSON 예시:
+[
+  {
+    "name": "session_id",
+    "domain": ".example.com",
+    "expirationDate": 1893456000,
+    "secure": true,
+    "httpOnly": true,
+    "sameSite": "lax",
+    "value": "이 값은 분석되지만 표시되지 않음"
+  }
+]'></textarea>
+    <div class="actions"><button class="primary" id="analyze">쿠키 분석하기</button><button class="secondary" id="sample">예시 데이터 보기</button><button class="secondary" id="clear">초기화</button></div>
+    <div id="error" class="error" role="alert"></div>
+    <p class="foot">지원 형식: 일반적인 JSON 쿠키 배열(브라우저 확장 프로그램별 필드명 차이를 일부 처리)과 Netscape 쿠키 TXT. CSV는 구조가 제각각이라 자동 해석이 보장되지 않습니다. 브라우저의 기본 설정 화면에서 내보낸 파일은 형식에 따라 지원되지 않을 수 있습니다.</p>
+  </section>
+
+  <section id="results" class="hidden">
+    <div class="stats">
+      <div class="stat"><span>분석한 쿠키</span><strong id="total">0</strong></div>
+      <div class="stat"><span>Secure 미설정</span><strong id="insecure">0</strong></div>
+      <div class="stat"><span>HttpOnly 미설정</span><strong id="nohttp">0</strong></div>
+      <div class="stat"><span>SameSite 확인 필요</span><strong id="samesite">0</strong></div>
+    </div>
+    <section class="panel"><h2>2. 요약 및 확인할 사항</h2><div id="findings" class="findings"></div></section>
+    <section class="panel"><h2>3. 쿠키별 분석 결과</h2><p class="muted">쿠키 값은 표시하지 않습니다. 보안 경고는 참고용이며 쿠키 이름만으로 실제 용도를 확정할 수 없습니다.</p>
+      <div class="tablewrap"><table><thead><tr><th>쿠키 이름</th><th>도메인</th><th>만료 시점</th><th>Secure</th><th>HttpOnly</th><th>SameSite</th><th>확인 결과</th></tr></thead><tbody id="rows"></tbody></table></div>
+    </section>
+    <div class="actions"><button id="export" class="secondary">분석 결과 CSV 저장 (쿠키 값 제외)</button></div>
+  </section>
+</main>
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  let analyzed = [];
+  const asBool = v => v === true || v === 1 || (typeof v === "string" && ["true","1","yes"].includes(v.toLowerCase()));
+  const get = (o, keys) => { for (const k of keys) if (o && o[k] !== undefined && o[k] !== null && o[k] !== "") return o[k]; return undefined; };
+  function normalizeSameSite(v) {
+    if (v === undefined || v === null || v === "") return "미지정";
+    const s = String(v).toLowerCase();
+    if (s.includes("strict")) return "Strict";
+    if (s.includes("lax")) return "Lax";
+    if (s.includes("no_restriction") || s === "none" || s.includes("no-restriction")) return "None";
+    return String(v);
+  }
+  function expiry(raw) {
+    if (raw === undefined || raw === null || raw === "" || raw === 0 || raw === "0") return {label:"세션 쿠키", ms:null};
+    let n = Number(raw);
+    if (!Number.isFinite(n)) {
+      const parsed = Date.parse(String(raw));
+      if (!Number.isNaN(parsed)) return {label:new Date(parsed).toLocaleString("ko-KR"), ms:parsed};
+      return {label:"알 수 없음", ms:null};
+    }
+    // Most browser exports use Unix seconds; some use milliseconds.
+    const ms = n > 1e12 ? n : n * 1000;
+    if (ms < 0 || ms > 8640000000000000) return {label:"알 수 없음", ms:null};
+    return {label:new Date(ms).toLocaleString("ko-KR"), ms};
+  }
+  function normalize(obj, i) {
+    const name = get(obj, ["name","Name","cookieName"]) ?? "(이름 없음)";
+    const domain = get(obj, ["domain","Domain","host","hostname"]) ?? "(도메인 없음)";
+    const rawExpiry = get(obj, ["expirationDate","expires","expiry","expiration","expiration_time","expiryDate"]);
+    const exp = expiry(rawExpiry);
+    const secureRaw = get(obj, ["secure","Secure","isSecure"]);
+    const httpRaw = get(obj, ["httpOnly","httponly","HttpOnly","isHttpOnly"]);
+    const same = normalizeSameSite(get(obj, ["sameSite","same_site","samesite","SameSite"]));
+    const secureKnown = secureRaw !== undefined;
+    const httpKnown = httpRaw !== undefined;
+    const secure = asBool(secureRaw), httpOnly = asBool(httpRaw);
+    const issues = [];
+    if (secureKnown && !secure) issues.push({level:"warn", text:"Secure 미설정"});
+    if (!secureKnown) issues.push({level:"neutral", text:"Secure 정보 없음"});
+    if (httpKnown && !httpOnly) issues.push({level:"warn", text:"HttpOnly 미설정"});
+    if (!httpKnown) issues.push({level:"neutral", text:"HttpOnly 정보 없음"});
+    if (same === "미지정") issues.push({level:"warn", text:"SameSite 미지정"});
+    if (same === "None" && secureKnown && !secure) issues.push({level:"bad", text:"SameSite=None + Secure 미설정"});
+    if (exp.ms !== null && exp.ms < Date.now()) issues.push({level:"neutral", text:"만료된 쿠키"});
+    return {name:String(name), domain:String(domain), expiry:exp.label, expiryMs:exp.ms, secure, secureKnown, httpOnly, httpKnown, same, issues};
+  }
+  function parseNetscape(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim() && !l.trim().startsWith("#") || l.startsWith("#HttpOnly_"));
+    const arr = [];
+    for (const line of lines) {
+      const parts = line.split("\t");
+      if (parts.length < 7) continue;
+      let domain = parts[0], includeSubdomains = parts[1], path = parts[2], secure = parts[3], expires = parts[4], name = parts[5];
+      if (domain.startsWith("#HttpOnly_")) domain = domain.slice(10);
+      arr.push({domain, path, secure: secure.toUpperCase()==="TRUE", httpOnly: line.startsWith("#HttpOnly_"), expirationDate:Number(expires)||0, name, value:parts.slice(6).join("\t"), sameSite:undefined});
+    }
+    return arr;
+  }
+  function parseData(text) {
+    const trimmed = text.trim();
+    if (!trimmed) throw new Error("파일을 선택하거나 JSON 데이터를 붙여 넣어 주세요.");
+    try {
+      let data = JSON.parse(trimmed);
+      if (Array.isArray(data)) return data;
+      if (data && Array.isArray(data.cookies)) return data.cookies;
+      if (data && Array.isArray(data.data)) return data.data;
+      if (data && typeof data === "object" && get(data, ["name","Name"])) return [data];
+      throw new Error("JSON에서 쿠키 배열을 찾지 못했습니다. 배열 또는 {\"cookies\": [...]} 형식을 사용해 주세요.");
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        const parsed = parseNetscape(trimmed);
+        if (parsed.length) return parsed;
+        throw new Error("파일을 읽을 수 있는 JSON 또는 Netscape 쿠키 TXT 형식이 아닙니다.");
+      }
+      throw e;
+    }
+  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function pill(text, cls) { return `<span class="pill ${cls}">${esc(text)}</span>`; }
+  function render(data) {
+    analyzed = data.map(normalize);
+    $("total").textContent = analyzed.length;
+    $("insecure").textContent = analyzed.filter(c => c.secureKnown && !c.secure).length;
+    $("nohttp").textContent = analyzed.filter(c => c.httpKnown && !c.httpOnly).length;
+    $("samesite").textContent = analyzed.filter(c => c.same === "미지정" || c.same === "None").length;
+    const findings = [];
+    const insecure = analyzed.filter(c => c.secureKnown && !c.secure).length;
+    const nohttp = analyzed.filter(c => c.httpKnown && !c.httpOnly).length;
+    const missingSame = analyzed.filter(c => c.same === "미지정").length;
+    const none = analyzed.filter(c => c.same === "None").length;
+    findings.push({title:"Secure 속성", desc: insecure ? `${insecure}개 쿠키에 Secure가 설정되지 않았습니다. HTTPS 사이트에서 민감한 쿠키라면 설정 여부를 확인하세요.` : "확인 가능한 쿠키에서 Secure 미설정 항목이 없거나, 속성 정보가 제공되지 않았습니다.", cls:insecure?"warn":"neutral"});
+    findings.push({title:"HttpOnly 속성", desc:nohttp ? `${nohttp}개 쿠키에 HttpOnly가 설정되지 않았습니다. 세션 쿠키 등은 자바스크립트 접근을 제한할 필요가 있는지 확인하세요.` : "확인 가능한 쿠키에서 HttpOnly 미설정 항목이 없거나, 속성 정보가 제공되지 않았습니다.", cls:nohttp?"warn":"neutral"});
+    findings.push({title:"SameSite 속성", desc:`미지정 ${missingSame}개 · None ${none}개. None은 교차 사이트 전송이 필요한 경우 사용되며 일반적으로 Secure와 함께 설정해야 합니다.`, cls:(missingSame||none)?"warn":"neutral"});
+    const expired = analyzed.filter(c => c.expiryMs !== null && c.expiryMs < Date.now()).length;
+    findings.push({title:"만료 시점", desc:`세션 쿠키 ${analyzed.filter(c=>c.expiry==="세션 쿠키").length}개 · 이미 만료된 쿠키 ${expired}개. 만료 시점만으로 위험 여부를 단정할 수는 없습니다.`, cls:expired?"warn":"neutral"});
+    $("findings").innerHTML = findings.map(f=>`<div class="finding">${pill(f.title,f.cls)}<p style="margin-top:8px">${esc(f.desc)}</p></div>`).join("");
+    $("rows").innerHTML = analyzed.map(c => {
+      const secure = !c.secureKnown ? pill("정보 없음","neutral") : c.secure ? pill("예","ok") : pill("아니요","warn");
+      const http = !c.httpKnown ? pill("정보 없음","neutral") : c.httpOnly ? pill("예","ok") : pill("아니요","warn");
+      const same = c.same==="미지정" ? pill(c.same,"warn") : c.same==="None" ? pill(c.same,"warn") : pill(c.same,"neutral");
+      const status = c.issues.length ? c.issues.map(x=>pill(x.text,x.level)).join(" ") : pill("기본 점검 통과","ok");
+      return `<tr><td>${esc(c.name)}</td><td>${esc(c.domain)}</td><td>${esc(c.expiry)}</td><td>${secure}</td><td>${http}</td><td>${same}</td><td>${status}</td></tr>`;
+    }).join("");
+    $("results").classList.remove("hidden");
+    $("error").textContent = "";
+  }
+  $("analyze").addEventListener("click", () => {
+    try { render(parseData($("input").value)); }
+    catch(e) { $("error").textContent = e.message || "분석 중 오류가 발생했습니다."; $("results").classList.add("hidden"); }
+  });
+  $("file").addEventListener("change", async e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try { $("input").value = await file.text(); $("error").textContent = ""; }
+    catch { $("error").textContent = "파일을 읽지 못했습니다."; }
+  });
+  $("sample").addEventListener("click", () => {
+    $("input").value = JSON.stringify([
+      {name:"session_id",domain:".example.com",expirationDate:1893456000,secure:true,httpOnly:true,sameSite:"lax",value:"SECRET_SAMPLE_DO_NOT_DISPLAY"},
+      {name:"analytics_id",domain:"example.com",expirationDate:1893456000,secure:true,httpOnly:false,sameSite:"lax",value:"SECRET_SAMPLE_DO_NOT_DISPLAY"},
+      {name:"ad_track",domain:".ads.example.net",expirationDate:1893456000,secure:false,httpOnly:false,sameSite:"no_restriction",value:"SECRET_SAMPLE_DO_NOT_DISPLAY"},
+      {name:"temporary_pref",domain:"example.com",expirationDate:0,secure:false,httpOnly:false,sameSite:"",value:"SECRET_SAMPLE_DO_NOT_DISPLAY"}
+    ], null, 2);
+    $("error").textContent = "예시 데이터가 입력되었습니다. ‘쿠키 분석하기’를 눌러 결과를 확인하세요.";
+  });
+  $("clear").addEventListener("click", () => {
+    $("input").value = ""; $("file").value = ""; $("error").textContent = "";
+    $("results").classList.add("hidden"); analyzed = [];
+  });
+  $("export").addEventListener("click", () => {
+    const csvCell = v => '"' + String(v ?? "").replace(/"/g,'""') + '"';
+    const rows = [["쿠키 이름","도메인","만료 시점","Secure","HttpOnly","SameSite","확인 결과"]];
+    analyzed.forEach(c => rows.push([c.name,c.domain,c.expiry,c.secureKnown?(c.secure?"예":"아니요"):"정보 없음",c.httpKnown?(c.httpOnly?"예":"아니요"):"정보 없음",c.same,c.issues.map(x=>x.text).join("; ")]));
+    const csv = "\uFEFF" + rows.map(r=>r.map(csvCell).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
+    const a = document.createElement("a"); a.href = url; a.download = "cookie_privacy_analysis.csv"; a.click(); URL.revokeObjectURL(url);
+  });
+})();
+</script>
+</body>
+</html>
