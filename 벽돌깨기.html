@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MINECRAFT FLATWORLD BRICK BREAKER</title>
+<style>
+  :root { color-scheme: dark; --bg:#8fd5ff; --panel:#d6f3ff; --cyan:#55b94b; --pink:#8d61c9; --text:#18351e; }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    padding:24px; color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:linear-gradient(#78caff 0%, #c8efff 68%, #7fc85b 68%, #4c9d3d 100%);
+  }
+  .wrap { width:min(920px,100%); }
+  header { display:flex; align-items:end; justify-content:space-between; gap:16px; margin-bottom:16px; flex-wrap:wrap; }
+  .eyebrow { color:#2d7d35; font-size:12px; font-weight:800; letter-spacing:.22em; }
+  h1 { margin:4px 0 0; font-size:clamp(26px,5vw,42px); letter-spacing:.04em; line-height:1.05; }
+  h1 span { color:var(--cyan); }
+  .stats { display:flex; gap:10px; flex-wrap:wrap; }
+  .stat { min-width:86px; padding:10px 14px; border:2px solid #5c8e48; background:#e9f8dccc; border-radius:12px; }
+  .stat small { display:block; color:#3e6740; font-size:10px; letter-spacing:.15em; font-weight:800; }
+  .stat strong { display:block; margin-top:2px; font-size:21px; font-variant-numeric:tabular-nums; }
+  .weather-stat strong { font-size:16px; white-space:nowrap; }
+  .game-shell { position:relative; border:4px solid #6d4a2e; border-radius:8px; padding:8px; background:#8c633b; box-shadow:0 12px 0 #4e3927,0 18px 35px #224b2b55; }
+  canvas { display:block; width:100%; height:auto; aspect-ratio: 8 / 5; border-radius:12px; background:#080f20; touch-action:none; }
+  .overlay { position:absolute; inset:8px; border-radius:12px; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; background:#d8f2d8e8; backdrop-filter:blur(3px); }
+  .overlay.hidden { display:none; }
+  .modal { max-width:420px; }
+  .modal .tag { color:var(--cyan); font-size:11px; letter-spacing:.2em; font-weight:900; }
+  .modal h2 { font-size:clamp(28px,5vw,42px); margin:8px 0; }
+  .modal p { color:#365b39; line-height:1.6; margin:0 0 20px; }
+  .weather-message { display:block; margin-top:10px; font-weight:800; color:#2d7d35; }
+  .test-weather { margin:0 0 16px; padding:12px; border:1px solid #8ab57a; border-radius:10px; background:#eff9e7; text-align:left; }
+  .test-weather label { display:block; margin-bottom:7px; font-size:12px; font-weight:900; color:#315d32; }
+  .test-weather .test-row { display:flex; gap:8px; }
+  .test-weather input { min-width:0; width:100%; padding:10px; border:1px solid #83a977; border-radius:8px; color:#18351e; background:#fff; font:inherit; }
+  .test-weather button { padding:10px 12px; white-space:nowrap; font-size:12px; box-shadow:none; }
+  .test-weather .hint { margin:7px 0 0; font-size:11px; line-height:1.4; color:#52734e; }
+  button { cursor:pointer; color:#06111e; font:800 14px inherit; font-size:14px; font-weight:900; border:0; border-radius:10px; padding:13px 22px; background:linear-gradient(100deg,#78d65b,#b8ed72); box-shadow:0 4px 0 #447d36; }
+  button:hover { filter:brightness(1.08); transform:translateY(-1px); }
+  .below { display:flex; justify-content:space-between; gap:12px; align-items:center; margin:14px 2px 0; flex-wrap:wrap; color:#3e6740; font-size:12px; }
+  .key { display:inline-block; padding:3px 7px; border:1px solid #6e8b57; border-radius:4px; color:#244729; background:#e6f5d8; margin:0 2px; }
+  .mobile-controls { display:none; gap:12px; margin-top:12px; }
+  .mobile-controls button { flex:1; padding:14px; background:#e0f4c9; color:#2c6c30; border:2px solid #5b9345; box-shadow:none; font-size:18px; }
+  @media (max-width:600px) {
+    body { padding:12px; align-items:flex-start; }
+    header { align-items:start; }
+    .stats { width:100%; }
+    .stat { flex:1; min-width:0; padding:8px 10px; }
+    .stat strong { font-size:18px; }
+    .below { font-size:11px; }
+    .mobile-controls { display:flex; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">MINECRAFT · SUPERFLAT WORLD</div>
+      <h1>FLAT <span>WORLD</span> BREAKER</h1>
+    </div>
+    <div class="stats" aria-label="게임 정보">
+      <div class="stat"><small>SCORE</small><strong id="score">00000</strong></div>
+      <div class="stat weather-stat" aria-live="polite"><small>SEOUL WEATHER</small><strong id="seoulTemp">오늘 서울 --°C</strong></div>
+      <div class="stat"><small>LEVEL</small><strong id="level">01</strong></div>
+      <div class="stat"><small>LIVES</small><strong id="lives">♥ ♥ ♥</strong></div>
+    </div>
+  </header>
+
+  <section class="game-shell">
+    <canvas id="game" width="800" height="500" aria-label="벽돌깨기 게임 화면"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="modal">
+        <div class="tag">READY PLAYER ONE?</div>
+        <h2 id="overlayTitle">평지 월드에 좀비 출현!</h2>
+        <p id="overlayText">마인크래프트 평지 월드에서 좀비를 튕겨 블록을 부수세요.<br>좀비가 아래로 떨어지지 않게 막아 주세요.<span class="weather-message" id="weatherMessage">서울 날씨를 확인하고 있어요…</span></p>
+        <div class="test-weather">
+          <label for="testTemp">테스트용 기온 직접 입력 (°C)</label>
+          <div class="test-row"><input id="testTemp" type="number" step="0.1" min="-80" max="60" placeholder="예: 28" aria-describedby="testTempHint"><button id="applyTestTemp" type="button">기온 적용</button></div>
+          <p class="hint" id="testTempHint">기온을 입력하고 ‘기온 적용’을 누르면 실제 날씨 대신 테스트 기온으로 속도와 안내 메시지를 확인할 수 있어요.</p>
+        </div>
+        <button id="startBtn" disabled>서울 날씨 확인 중…</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="below">
+    <div><span class="key">←</span><span class="key">→</span> 이동 <span style="margin-left:8px" class="key">마우스</span> 조작 <span class="key">Space</span> 시작/일시정지</div>
+    <div>블록을 모두 부수면 다음 레벨로!</div>
+  </div>
+  <div class="below" style="justify-content:center;margin-top:8px"><button id="musicBtn" type="button">♫ 배경음 켜기</button><span id="musicNote">잔잔한 오리지널 블록 월드 멜로디</span></div>
+  <div class="mobile-controls">
+    <button id="leftBtn" aria-label="왼쪽 이동">←</button>
+    <button id="pauseBtn" aria-label="일시정지">Ⅱ</button>
+    <button id="rightBtn" aria-label="오른쪽 이동">→</button>
+  </div>
+</main>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const $ = id => document.getElementById(id);
+  const W = canvas.width, H = canvas.height;
+
+  // Open-Meteo current conditions for Seoul (no API key required).
+  let currentTemperature = null;
+  let weatherSpeedMultiplier = 1;
+  let weatherLoaded = false;
+  let testTemperatureActive = false;
+  function applyTemperature(temp, sourceLabel='Open-Meteo') {
+    currentTemperature = temp;
+    weatherSpeedMultiplier = temp >= 25 ? 1.25 : temp < 10 ? 0.8 : 1;
+    $('seoulTemp').textContent = `오늘 서울 ${Math.round(temp)}°C`;
+    $('seoulTemp').title = `${sourceLabel} · 적용 기온 ${temp}°C`;
+    if (temp >= 25) $('weatherMessage').textContent = `${temp}°C: 25°C 이상! 오늘은 공이 빠르게 움직여요.`;
+    else if (temp < 10) $('weatherMessage').textContent = `${temp}°C: 10°C 미만! 오늘은 공이 느리게 움직여요.`;
+    else $('weatherMessage').textContent = `${temp}°C: 오늘은 기본 속도로 플레이해요.`;
+    if (weatherLoaded) { resetBall(); }
+  }
+  async function loadSeoulTemperature() {
+    const el = $('seoulTemp');
+    const message = $('weatherMessage');
+    const startBtn = $('startBtn');
+    try {
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.9780&current=temperature_2m&temperature_unit=celsius&timezone=Asia%2FSeoul';
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Weather request failed');
+      const data = await response.json();
+      const temp = data?.current?.temperature_2m;
+      if (typeof temp !== 'number') throw new Error('Temperature unavailable');
+      if (!testTemperatureActive) {
+        applyTemperature(temp, `Open-Meteo · ${data.current.time || '현재 관측'}`);
+      }
+    } catch (error) {
+      if (!testTemperatureActive) {
+        el.textContent = '오늘 서울 --°C';
+        el.title = '날씨 정보를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.';
+        weatherSpeedMultiplier = 1;
+        message.textContent = '날씨를 불러오지 못해 기본 속도로 시작해요. 테스트 기온을 직접 입력할 수도 있어요.';
+      }
+    } finally {
+      weatherLoaded = true;
+      startBtn.disabled = false;
+      startBtn.textContent = '게임 시작하기 →';
+    }
+  }
+  loadSeoulTemperature();
+  $('applyTestTemp').addEventListener('click', () => {
+    const raw = $('testTemp').value.trim();
+    const temp = Number(raw);
+    if (raw === '' || !Number.isFinite(temp) || temp < -80 || temp > 60) {
+      $('weatherMessage').textContent = '테스트 기온을 -80°C부터 60°C 사이로 입력해 주세요.';
+      $('testTemp').focus();
+      return;
+    }
+    testTemperatureActive = true;
+    applyTemperature(temp, '테스트 입력');
+    $('weatherMessage').textContent += ' (테스트 기온 적용됨)';
+    $('startBtn').disabled = false;
+    $('startBtn').textContent = '이 기온으로 게임 시작 →';
+  });
+  $('testTemp').addEventListener('keydown', e => { if (e.key === 'Enter') $('applyTestTemp').click(); });
+  const colors = ['#54f6ff','#5c9dff','#a879ff','#ff4fa3','#ffbd5b'];
+  let score = 0, level = 1, lives = 3, running = false, gameOver = false;
+  let left = false, right = false, lastTime = 0, raf = 0, particles = [];
+  const paddle = { w: 112, h: 13, x: W/2-56, y: H-36, speed: 7.5 };
+  const ball = { x: W/2, y: H-58, r: 14, vx: 3.2, vy: -4.4, stuck: true };
+  let bricks = [];
+
+  function makeBricks() {
+    bricks = [];
+    const rows = Math.min(4 + level, 7), cols = 10, gap = 9, side = 35;
+    const bw = (W - side*2 - gap*(cols-1))/cols, bh = 22, top = 62;
+    // Tough dirt blocks become more common every level; each needs two hits.
+    const toughChance = Math.min(0.18 + (level-1)*0.10, 0.78);
+    for (let r=0; r<rows; r++) for (let c=0; c<cols; c++) {
+      const tough = Math.random() < toughChance;
+      bricks.push({ x:side+c*(bw+gap), y:top+r*(bh+gap), w:bw, h:bh, hp:tough ? 2 : 1, maxHp:tough ? 2 : 1, alive:true });
+    }
+  }
+  function resetBall() {
+    balls = [ball];
+    ball.stuck = true; ball.x = paddle.x+paddle.w/2; ball.y = paddle.y-ball.r-2;
+    const speed = Math.min(7.2, 5.2 + (level-1)*.28) * weatherSpeedMultiplier;
+    ball.vx = (Math.random()>.5?1:-1)*speed*.62; ball.vy = -speed*.78;
+  }
+  function updateStats() {
+    $('score').textContent = String(score).padStart(5,'0');
+    $('level').textContent = String(level).padStart(2,'0');
+    $('lives').textContent = lives > 0 ? '♥ '.repeat(lives).trim() : '—';
+  }
+  function showOverlay(title, text, button='다시 시작하기 ↻') {
+    $('overlayTitle').textContent=title; $('overlayText').innerHTML=text;
+    $('startBtn').textContent=button; $('overlay').classList.remove('hidden');
+  }
+  function startGame() {
+    if (!weatherLoaded) return;
+    if (gameOver) { score=0; level=1; lives=3; gameOver=false; makeBricks(); updateStats(); }
+    $('overlay').classList.add('hidden'); running=true; lastTime=0;
+    if (ball.stuck) launchBall();
+    cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
+  }
+  function launchBall() { ball.stuck=false; }
+  function pauseGame() {
+    if (gameOver) return;
+    if (running) { running=false; showOverlay('잠깐 쉬어 가기', '준비되면 다시 시작 버튼을 눌러 계속하세요.', '계속하기 ▶'); }
+    else startGame();
+  }
+  function resetForLife() { paddle.x=W/2-paddle.w/2; resetBall(); }
+  function burst(x,y,color) {
+    for(let i=0;i<9;i++){ const a=Math.random()*Math.PI*2, s=1+Math.random()*3;
+      particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:24+Math.random()*12,color}); }
+  }
+  function splitBall(source) {
+    // Keep the original ball and spawn a second ball with a diverging trajectory.
+    const speed = Math.max(4.2, Math.hypot(source.vx, source.vy));
+    const angle = Math.atan2(source.vy, source.vx);
+    const offset = 0.42;
+    const clone = {
+      x: source.x, y: source.y, r: source.r,
+      vx: Math.cos(angle + offset) * speed,
+      vy: Math.sin(angle + offset) * speed,
+      stuck: false
+    };
+    spawnedBalls.push(clone);
+    burst(source.x, source.y, '#9ee66a');
+  }
+  function drawBackground() {
+    ctx.clearRect(0,0,W,H);
+    // Minecraft-inspired superflat sky
+    const sky = ctx.createLinearGradient(0,0,0,H);
+    sky.addColorStop(0,'#62b9ff'); sky.addColorStop(.68,'#b8e7ff'); sky.addColorStop(.681,'#8acb58'); sky.addColorStop(1,'#65ad43');
+    ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+    // Square sun
+    ctx.fillStyle='#fff3a0'; ctx.fillRect(680,38,42,42);
+    ctx.fillStyle='#ffe36a'; ctx.fillRect(686,44,30,30);
+    // Pixel clouds
+    ctx.fillStyle='#f4fbff';
+    [[70,54],[96,42],[122,54],[96,64],[270,90],[294,76],[318,90],[294,101],[525,48],[549,35],[573,48],[549,59]].forEach(([x,y])=>ctx.fillRect(x,y,25,14));
+    // Distant flat grass-and-dirt layers
+    ctx.fillStyle='#75bd4e'; ctx.fillRect(0,278,W,32);
+    ctx.fillStyle='#559e3c'; ctx.fillRect(0,310,W,26);
+    // Blocky grass / dirt columns along the horizon
+    for(let x=0;x<W;x+=64){
+      const h=[22,36,18,30,25,40,17,28][Math.floor(x/64)%8];
+      ctx.fillStyle='#4f9639'; ctx.fillRect(x,336-h,64,h);
+      ctx.fillStyle='#78c64d'; ctx.fillRect(x,336-h,64,7);
+      ctx.fillStyle='#8b5b35'; ctx.fillRect(x,336,64,H-336);
+      ctx.fillStyle='#704728'; ctx.fillRect(x,358,64,5);
+      ctx.fillStyle='#9b6a3d'; ctx.fillRect(x+8,346,11,8); ctx.fillRect(x+39,371,14,9);
+    }
+    // Foreground grass block floor, pixel grid
+    ctx.fillStyle='#65b647'; ctx.fillRect(0,H-28,W,28);
+    ctx.fillStyle='#8ad45a'; ctx.fillRect(0,H-28,W,7);
+    ctx.strokeStyle='rgba(40,95,35,.28)'; ctx.lineWidth=1;
+    for(let x=0;x<W;x+=32){ctx.strokeRect(x,H-21,32,21);}
+    // Sparse pixel grass tufts
+    ctx.fillStyle='#347b34';
+    for(let x=18;x<W;x+=73){ctx.fillRect(x,H-36,4,9);ctx.fillRect(x+4,H-32,4,5);}
+    // Subtle game field boundary
+    ctx.strokeStyle='rgba(255,255,255,.24)'; ctx.strokeRect(1,1,W-2,H-2);
+  }
+  function roundedRect(x,y,w,h,r) {
+    ctx.beginPath(); ctx.roundRect(x,y,w,h,r);
+  }
+  function draw() {
+    drawBackground();
+    bricks.forEach(b=>{
+      if(!b.alive)return;
+      ctx.save();
+      // Minecraft grass block: green turf over a brown dirt face.
+      ctx.fillStyle='#70472b'; ctx.fillRect(b.x,b.y,b.w,b.h);
+      ctx.fillStyle='#8a5a35'; ctx.fillRect(b.x,b.y+5,b.w,b.h-5);
+      ctx.fillStyle='#4b9638'; ctx.fillRect(b.x,b.y,b.w,7);
+      ctx.fillStyle='#79c94c'; ctx.fillRect(b.x,b.y,b.w,3);
+      // Little pixel tufts along the grass edge.
+      ctx.fillStyle='#5aaa3e';
+      ctx.fillRect(b.x+4,b.y+3,5,4); ctx.fillRect(b.x+15,b.y+2,4,5);
+      ctx.fillRect(b.x+b.w-11,b.y+3,6,4);
+      // Dirt pixel flecks.
+      ctx.fillStyle='#a77545'; ctx.fillRect(b.x+5,b.y+11,5,3);
+      ctx.fillRect(b.x+b.w-15,b.y+15,6,3); ctx.fillStyle='#5b3926';
+      ctx.fillRect(b.x+Math.floor(b.w*.48),b.y+10,4,3);
+      if(b.maxHp===2) {
+        // Stone-like dark rim and cracks mark the tougher, two-hit dirt block.
+        ctx.strokeStyle='#4a382b'; ctx.lineWidth=2; ctx.strokeRect(b.x+1,b.y+1,b.w-2,b.h-2);
+        if(b.hp===1) {
+          ctx.strokeStyle='#332a22'; ctx.lineWidth=1.5;
+          ctx.beginPath(); ctx.moveTo(b.x+b.w*.38,b.y+7); ctx.lineTo(b.x+b.w*.48,b.y+12);
+          ctx.lineTo(b.x+b.w*.42,b.y+17); ctx.lineTo(b.x+b.w*.58,b.y+20); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(b.x+b.w*.48,b.y+12); ctx.lineTo(b.x+b.w*.65,b.y+9); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    });
+    // Grass-topped dirt block paddle
+    ctx.fillStyle='#79502e'; ctx.fillRect(paddle.x,paddle.y,paddle.w,paddle.h+3);
+    ctx.fillStyle='#6eb94a'; ctx.fillRect(paddle.x,paddle.y,paddle.w,5);
+    ctx.fillStyle='#a0dc63'; ctx.fillRect(paddle.x,paddle.y,paddle.w,2);
+    ctx.fillStyle='#8b6039'; ctx.fillRect(paddle.x+10,paddle.y+7,13,4);
+    ctx.fillStyle='#a87949'; ctx.fillRect(paddle.x+paddle.w-25,paddle.y+7,15,4);
+    // Draw every bouncing Minecraft zombie.
+    balls.forEach(ball => {
+      const zw = 30, zh = 42, zx = Math.round(ball.x-zw/2), zy = Math.round(ball.y-zh/2);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.shadowBlur = 8; ctx.shadowColor = '#315b37';
+      // Arms reaching forward
+      ctx.fillStyle='#3c8d45'; ctx.fillRect(zx-8,zy+15,10,10); ctx.fillRect(zx+zw-2,zy+15,10,10);
+      ctx.fillStyle='#58a94f'; ctx.fillRect(zx-8,zy+15,10,4); ctx.fillRect(zx+zw-2,zy+15,10,4);
+      // Purple-blue pants and feet
+      ctx.fillStyle='#354e9b'; ctx.fillRect(zx+4,zy+31,9,8); ctx.fillRect(zx+17,zy+31,9,8);
+      ctx.fillStyle='#24345f'; ctx.fillRect(zx+2,zy+37,11,5); ctx.fillRect(zx+17,zy+37,11,5);
+      // Teal shirt
+      ctx.fillStyle='#167b70'; ctx.fillRect(zx+4,zy+15,22,18);
+      ctx.fillStyle='#2aa99a'; ctx.fillRect(zx+4,zy+15,22,5);
+      ctx.fillStyle='#12645d'; ctx.fillRect(zx+13,zy+20,4,11);
+      // Square green head
+      ctx.fillStyle='#285d35'; ctx.fillRect(zx+3,zy,24,17);
+      ctx.fillStyle='#4f9e4b'; ctx.fillRect(zx+4,zy+1,22,14);
+      ctx.fillStyle='#65b956'; ctx.fillRect(zx+4,zy+1,22,4);
+      ctx.fillStyle='#24452e'; ctx.fillRect(zx+5,zy+6,8,3); ctx.fillRect(zx+18,zy+6,7,3);
+      ctx.fillStyle='#d8ead0'; ctx.fillRect(zx+6,zy+8,6,4); ctx.fillRect(zx+18,zy+8,6,4);
+      ctx.fillStyle='#182d25'; ctx.fillRect(zx+8,zy+8,3,4); ctx.fillRect(zx+19,zy+8,3,4);
+      ctx.fillStyle='#347c3e'; ctx.fillRect(zx+13,zy+10,4,3);
+      ctx.fillStyle='#24462d'; ctx.fillRect(zx+9,zy+13,13,3);
+      ctx.fillStyle='#b4d99b'; ctx.fillRect(zx+11,zy+13,3,2); ctx.fillRect(zx+17,zy+13,3,2);
+      ctx.restore();
+    });
+    particles=particles.filter(p=>p.life>0);
+    particles.forEach(p=>{ctx.globalAlpha=Math.min(1,p.life/25);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,3,3);p.x+=p.vx;p.y+=p.vy;p.life--;});
+    ctx.globalAlpha=1;
+    if(balls.some(b=>b.stuck) && running){ctx.fillStyle='#9bb1d5';ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillText('SPACE 또는 클릭하여 시작',W/2,H-70);}
+  }
+  function update(dt) {
+    const scale=Math.min(dt/16.67,2);
+    if(left) paddle.x-=paddle.speed*scale;
+    if(right) paddle.x+=paddle.speed*scale;
+    paddle.x=Math.max(8,Math.min(W-paddle.w-8,paddle.x));
+    if(balls.length===1 && balls[0].stuck) {
+      balls[0].x=paddle.x+paddle.w/2; balls[0].y=paddle.y-22;
+      return;
+    }
+    // Move and collide each zombie independently.
+    const survivors=[];
+    spawnedBalls=[];
+    for(const bll of balls.slice()) {
+      if(bll.stuck) { bll.x=paddle.x+paddle.w/2; bll.y=paddle.y-22; survivors.push(bll); continue; }
+      bll.x+=bll.vx*scale; bll.y+=bll.vy*scale;
+      if(bll.x-bll.r<0){bll.x=bll.r;bll.vx=Math.abs(bll.vx);}
+      if(bll.x+bll.r>W){bll.x=W-bll.r;bll.vx=-Math.abs(bll.vx);}
+      if(bll.y-bll.r<0){bll.y=bll.r;bll.vy=Math.abs(bll.vy);}
+      // Paddle collision
+      if(bll.vy>0 && bll.y+21>=paddle.y && bll.y-21<=paddle.y+paddle.h &&
+         bll.x>=paddle.x-8 && bll.x<=paddle.x+paddle.w+8) {
+        bll.y=paddle.y-22;
+        const hit=Math.max(-1,Math.min(1,(bll.x-(paddle.x+paddle.w/2))/(paddle.w/2)));
+        const speed=Math.min(10.5,Math.hypot(bll.vx,bll.vy)+.04);
+        const angle=hit*1.05; bll.vx=speed*Math.sin(angle); bll.vy=-Math.abs(speed*Math.cos(angle));
+        burst(bll.x,bll.y,'#79d454');
+      }
+      let hitBrick=false;
+      for(const br of bricks) {
+        if(!br.alive)continue;
+        if(bll.x+bll.r>br.x && bll.x-bll.r<br.x+br.w && bll.y+bll.r>br.y && bll.y-bll.r<br.y+br.h) {
+          const prevX=bll.x-bll.vx*scale, prevY=bll.y-bll.vy*scale;
+          if(prevX+bll.r<=br.x || prevX-bll.r>=br.x+br.w) bll.vx*=-1; else bll.vy*=-1;
+          br.hp--;
+          if(br.hp<=0) {
+            br.alive=false; score+=10*level; burst(bll.x,bll.y,'#79c94c');
+            // Breaking any block splits the zombie ball into two.
+            splitBall(bll);
+          } else { score+=3; burst(bll.x,bll.y,'#a77545'); }
+          updateStats(); hitBrick=true; break;
+        }
+      }
+      if(bll.y-22<=H) survivors.push(bll);
+    }
+    // Add newly split balls after processing this frame, avoiding duplicate updates.
+    balls=survivors.concat(spawnedBalls.filter(nb=>nb.y-22<=H));
+    // Avoid runaway ball multiplication; keep up to 8 active zombies.
+    if(balls.length>8) balls=balls.slice(0,8);
+    if(balls.length===0 || balls.every(b=>b.y-22>H)) {
+      lives--;updateStats();
+      if(lives<=0){running=false;gameOver=true;showOverlay('게임 오버!',`최종 점수는 <b>${score}</b>점입니다.<br>다시 도전해 최고 기록을 세워 보세요!`,'다시 도전하기 ↻');return;}
+      resetForLife();
+    }
+    if(bricks.every(b=>!b.alive)){
+      level++; makeBricks(); resetForLife(); updateStats();
+      running=false; showOverlay(`LEVEL ${String(level).padStart(2,'0')}`, '좋아요! 다음 레벨에서는 공이 조금 더 빨라지고 단단한 흙 블록이 더 많아집니다.','다음 레벨 ▶');
+    }
+  }
+  function loop(t) {
+    if(!running){draw();return;}
+    const dt=lastTime?Math.min(t-lastTime,32):16.67;lastTime=t;
+    update(dt);draw();
+    if(running) raf=requestAnimationFrame(loop);
+  }
+  function moveTo(clientX) {
+    const rect=canvas.getBoundingClientRect();
+    const x=(clientX-rect.left)/rect.width*W;
+    paddle.x=Math.max(8,Math.min(W-paddle.w-8,x-paddle.w/2));
+    if(balls.length===1 && balls[0].stuck){balls[0].x=paddle.x+paddle.w/2;balls[0].y=paddle.y-22;}
+  }
+  canvas.addEventListener('pointermove',e=>moveTo(e.clientX));
+  canvas.addEventListener('pointerdown',()=>{if(!running && !gameOver && $('overlay').classList.contains('hidden')){running=true;launchBall();raf=requestAnimationFrame(loop);}else if(running&&balls.some(b=>b.stuck)){balls.forEach(b=>b.stuck=false);}});
+  $('startBtn').addEventListener('click',startGame);
+  $('pauseBtn').addEventListener('click',pauseGame);
+  $('leftBtn').addEventListener('pointerdown',e=>{e.preventDefault();left=true;});
+  $('leftBtn').addEventListener('pointerup',()=>left=false);
+  $('leftBtn').addEventListener('pointerleave',()=>left=false);
+  $('rightBtn').addEventListener('pointerdown',e=>{e.preventDefault();right=true;});
+  $('rightBtn').addEventListener('pointerup',()=>right=false);
+  $('rightBtn').addEventListener('pointerleave',()=>right=false);
+  window.addEventListener('keydown',e=>{
+    if(['ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
+    if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A')left=true;
+    if(e.key==='ArrowRight'||e.key==='d'||e.key==='D')right=true;
+    if(e.code==='Space'){if(!running){startGame();}else if(balls.some(b=>b.stuck)){balls.forEach(b=>b.stuck=false);}else pauseGame();}
+    if(e.key==='Escape')pauseGame();
+  });
+  window.addEventListener('keyup',e=>{
+    if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A')left=false;
+    if(e.key==='ArrowRight'||e.key==='d'||e.key==='D')right=false;
+  });
+  window.addEventListener('blur',()=>{left=false;right=false;});
+
+  // Original gentle ambient loop synthesized with Web Audio (not an official Minecraft track).
+  let audioCtx=null, musicTimer=null, musicOn=false, musicStep=0;
+  const notes=[261.63,329.63,392.00,523.25,392.00,329.63,293.66,349.23,440.00,587.33,440.00,349.23,261.63,329.63,392.00,493.88];
+  function playMusicNote(freq, when, duration, volume, type='sine') {
+    if(!audioCtx) return;
+    const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+    osc.type=type; osc.frequency.setValueAtTime(freq,when);
+    gain.gain.setValueAtTime(0.0001,when);
+    gain.gain.exponentialRampToValueAtTime(volume,when+0.08);
+    gain.gain.exponentialRampToValueAtTime(0.0001,when+duration);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(when); osc.stop(when+duration+0.03);
+  }
+  function scheduleMusic() {
+    if(!musicOn || !audioCtx) return;
+    const now=audioCtx.currentTime;
+    const n=notes[musicStep%notes.length];
+    playMusicNote(n,now,1.7,0.045,'sine');
+    if(musicStep%4===0) playMusicNote(n/2,now,2.4,0.025,'triangle');
+    if(musicStep%2===1) playMusicNote(notes[(musicStep+4)%notes.length]*2,now+0.22,1.1,0.012,'sine');
+    musicStep++;
+  }
+  function toggleMusic() {
+    if(!audioCtx) {
+      const AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC){$('musicNote').textContent='이 브라우저는 배경음을 지원하지 않아요.';return;}
+      audioCtx=new AC();
+    }
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    musicOn=!musicOn;
+    if(musicOn) {
+      scheduleMusic();
+      musicTimer=setInterval(scheduleMusic,1150);
+      $('musicBtn').textContent='♫ 배경음 끄기';
+      $('musicNote').textContent='오리지널 잔잔한 앰비언트 멜로디';
+    } else {
+      clearInterval(musicTimer); musicTimer=null;
+      $('musicBtn').textContent='♫ 배경음 켜기';
+      $('musicNote').textContent='배경음이 꺼져 있어요';
+    }
+  }
+  $('musicBtn').addEventListener('click',toggleMusic);
+  makeBricks(); updateStats(); resetBall(); draw();
+})();
+</script>
+</body>
+</html>
